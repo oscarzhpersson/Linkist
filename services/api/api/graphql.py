@@ -6,6 +6,7 @@ from strawberry.fastapi import BaseContext, GraphQLRouter
 from strawberry.permission import BasePermission
 from strawberry.types import Info as _Info
 from strawberry.types.info import RootValueType
+from confluent_kafka import Consumer, KafkaException
 import logging
 
 from . import auth, db
@@ -63,14 +64,34 @@ class Query:
 class Subscription:
     @strawberry.subscription
     async def product_added(self) -> AsyncGenerator[db.Product, None]:
-        # TODO: use a Kafka topic to avoid polling here
-        seen = set(p.id for p in db.list_products())
-        while True:
-            for p in db.list_products():
-                if p.id not in seen:
-                    seen.add(p.id)
-                    yield p
-            await asyncio.sleep(0.5)
+        # Create a Kafka consumer
+        consumer = Consumer({
+            'bootstrap.servers': 'localhost:9092',  # replace with your Kafka server address
+            'group.id': 'product-group',
+            'auto.offset.reset': 'earliest'
+        })
+
+        # Subscribe to the 'products' topic
+        consumer.subscribe(['products'])
+
+        try:
+            while True:
+                msg = consumer.poll(1.0)
+
+                if msg is None:
+                    continue
+                if msg.error():
+                    raise KafkaException(msg.error())
+                else:
+                    # Assume the message is a serialized Product object
+                    product = deserialize_product(msg.value())
+                    yield product
+
+        except KeyboardInterrupt:
+            pass
+        finally:
+            # Close down consumer to commit final offsets.
+            consumer.close()
 
 #### API ####
 
