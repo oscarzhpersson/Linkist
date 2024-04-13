@@ -1,0 +1,26 @@
+_format_version: '2.1'
+_transform: true
+
+services:
+- name: frontend
+  url: http://frontend:3000
+  routes:
+  - name: frontend-route
+    paths:
+    - /
+
+- name: input
+  url: http://input:3002
+  routes:
+  - name: input-route
+    strip_path: false
+    paths:
+    - /input
+
+- name: api
+  url: http://api:4000
+  routes:
+  - name: api-route
+    strip_path: false
+    paths:
+    - /api
